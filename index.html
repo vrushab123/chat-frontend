@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Private Chat</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins&display=swap" rel="stylesheet">
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: 'Poppins', sans-serif;
+      background-color: #121212;
+      color: #f0f0f0;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    h2 {
+      margin: 0;
+      padding: 15px;
+      background: #1e1e1e;
+      text-align: center;
+      font-weight: 500;
+      font-size: 20px;
+      border-bottom: 1px solid #333;
+    }
+
+    #messages {
+      flex: 1;
+      padding: 15px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .message {
+      max-width: 75%;
+      margin-bottom: 10px;
+      padding: 10px 15px;
+      border-radius: 18px;
+      word-break: break-word;
+      font-size: 14px;
+      animation: fadeIn 0.2s ease-in;
+    }
+
+    .me {
+      align-self: flex-end;
+      background-color: #0b93f6;
+      color: white;
+      border-bottom-right-radius: 0;
+    }
+
+    .partner {
+      align-self: flex-start;
+      background-color: #2a2a2a;
+      color: #f0f0f0;
+      border-bottom-left-radius: 0;
+    }
+
+    #form {
+      display: flex;
+      padding: 10px;
+      background-color: #1e1e1e;
+      border-top: 1px solid #333;
+    }
+
+    #input {
+      flex: 1;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 20px;
+      background-color: #2e2e2e;
+      color: #f0f0f0;
+      font-size: 14px;
+    }
+
+    #input:focus {
+      outline: none;
+    }
+
+    button {
+      margin-left: 10px;
+      padding: 10px 18px;
+      border: none;
+      border-radius: 20px;
+      background-color: #0b93f6;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #007add;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 600px) {
+      .message {
+        max-width: 85%;
+        font-size: 13px;
+      }
+
+      button {
+        padding: 8px 14px;
+        font-size: 13px;
+      }
+
+      #input {
+        font-size: 13px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <h2>Private Chat</h2>
+  <div id="messages"></div>
+
+  <form id="form">
+    <input id="input" autocomplete="off" placeholder="Type a message..." />
+    <button>Send</button>
+  </form>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const username = prompt("Enter your name:")?.trim() || "Anonymous";
+    const socket = io("https://chat-backend-9co6.onrender.com");
+    const form = document.getElementById('form');
+    const input = document.getElementById('input');
+    const messages = document.getElementById('messages');
+
+    function addMessage(text, sender) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      div.classList.add('message');
+      div.classList.add(sender === username ? 'me' : 'partner');
+      messages.appendChild(div);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    socket.on('chat history', (history) => {
+      history.forEach(({ text, sender }) => {
+        addMessage(text, sender);
+      });
+    });
+
+    socket.on('chat message', ({ text, sender }) => {
+      addMessage(text, sender);
+    });
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (text) {
+        const msg = { text, sender: username };
+        socket.emit('chat message', msg);
+        input.value = '';
+      }
+    });
+  </script>
+</body>
+</html>
