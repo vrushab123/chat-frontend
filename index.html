@@ -1,10 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Private Chat</title>
-  <link href="https://fonts.googleapis.com/css2?family=Poppins&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins&display=swap" rel="stylesheet" />
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 
   <style>
     * {
@@ -99,9 +101,35 @@
       background-color: #007add;
     }
 
+    #password-screen {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      padding: 20px;
+    }
+
+    #password-input {
+      padding: 10px;
+      font-size: 16px;
+      border-radius: 8px;
+      border: none;
+      margin-top: 10px;
+      background: #2a2a2a;
+      color: #f0f0f0;
+    }
+
     @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(5px); }
-      to { opacity: 1; transform: translateY(0); }
+      from {
+        opacity: 0;
+        transform: translateY(5px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
 
     @media (max-width: 600px) {
@@ -121,54 +149,145 @@
     }
   </style>
 </head>
+
 <body>
 
-  <h2>Private Chat</h2>
-  <div id="messages"></div>
+  <!-- Password Screen -->
+  <div id="password-screen">
+    <h2>Private Access</h2>
+    <input type="password" id="password-input" placeholder="Enter password" />
+    <button onclick="checkPassword()">Enter</button>
+    <p id="wrong-pass-msg" style="color:red; display:none;">Wrong password</p>
+  </div>
 
-  <form id="form">
-    <input id="input" autocomplete="off" placeholder="Type a message..." />
-    <button>Send</button>
-  </form>
-
-  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-
+  <!-- Chat Screen -->
+  <div id="chat-screen" style="display:none; flex-direction: column; height: 100vh;">
+    <h2>Private Chat</h2>
+    <div id="messages">
+      <div id="typing-indicator" style="font-size: 13px; opacity: 0.6; margin-left: 15px; display: none;"></div>
+    </div>
+    <form id="form">
+      <input id="input" autocomplete="off" placeholder="Type a message..." />
+      <input type="file" id="fileInput" accept="image/*,video/*" />
+      <button>Send</button>
+    </form>
+  </div>
 
   <script>
-    const username = prompt("Enter your name:")?.trim() || "Anonymous";
-    const socket = io("https://chat-backend-9co6.onrender.com");
-    const form = document.getElementById('form');
-    const input = document.getElementById('input');
-    const messages = document.getElementById('messages');
+    const correctPassword = "547211";
+    let username;
+    let socket;
 
-    function addMessage(text, sender) {
-      const div = document.createElement('div');
-      div.textContent = text;
-      div.classList.add('message');
-      div.classList.add(sender === username ? 'me' : 'partner');
-      messages.appendChild(div);
-      messages.scrollTop = messages.scrollHeight;
+    function checkPassword() {
+      const entered = document.getElementById("password-input").value;
+      if (entered === correctPassword) {
+        document.getElementById("password-screen").style.display = "none";
+        document.getElementById("chat-screen").style.display = "flex";
+        startChat();
+      } else {
+        document.getElementById("wrong-pass-msg").style.display = "block";
+      }
     }
 
-    socket.on('chat history', (history) => {
-      history.forEach(({ text, sender }) => {
-        addMessage(text, sender);
+    function startChat() {
+      username = prompt("Enter your name:")?.trim() || "Anonymous";
+      socket = io('https://chat-backend-9co6.onrender.com');
+
+
+      const form = document.getElementById('form');
+      const input = document.getElementById('input');
+      const messages = document.getElementById('messages');
+      const fileInput = document.getElementById('fileInput');
+      let typingTimeout;
+
+      input.addEventListener('input', () => {
+        socket.emit('typing', username);
+        clearTimeout(typingTimeout);
+        typingTimeout = setTimeout(() => {
+          socket.emit('stop typing', username);
+        }, 1500);
       });
-    });
 
-    socket.on('chat message', ({ text, sender }) => {
-      addMessage(text, sender);
-    });
+      socket.on('typing', (name) => {
+        if (name !== username) {
+          const typingDiv = document.getElementById('typing-indicator');
+          typingDiv.textContent = `${name} is typing...`;
+          typingDiv.style.display = 'block';
+          messages.scrollTop = messages.scrollHeight;
+        }
+      });
 
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const text = input.value.trim();
-      if (text) {
-        const msg = { text, sender: username };
-        socket.emit('chat message', msg);
-        input.value = '';
+      socket.on('stop typing', (name) => {
+        if (name !== username) {
+          const typingDiv = document.getElementById('typing-indicator');
+          typingDiv.style.display = 'none';
+        }
+      });
+
+      function addMessage(text, sender, createdAt, fileData, fileType) {
+        const div = document.createElement('div');
+        const time = new Date(createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        let mediaHtml = '';
+        if (fileData && fileType) {
+          if (fileType.startsWith('image/')) {
+            mediaHtml = `<br><img src="${fileData}" alt="image" style="max-width: 200px; border-radius: 10px; margin-top: 5px;" />`;
+          } else if (fileType.startsWith('video/')) {
+            mediaHtml = `<br><video controls style="max-width: 200px; border-radius: 10px; margin-top: 5px;">
+              <source src="${fileData}" type="${fileType}" />
+              Your browser does not support the video tag.
+            </video>`;
+          }
+        }
+
+        div.innerHTML = `<strong>${sender}:</strong> ${text || ''} ${mediaHtml}<br><small style="font-size: 10px; opacity: 0.6;">${time}</small>`;
+        div.classList.add('message');
+        div.classList.add(sender === username ? 'me' : 'partner');
+        messages.insertBefore(div, document.getElementById('typing-indicator'));
+        messages.scrollTop = messages.scrollHeight;
       }
-    });
+
+      socket.on('chat history', (history) => {
+        history.forEach(({ text, sender, createdAt, fileData, fileType }) => {
+          addMessage(text, sender, createdAt, fileData, fileType);
+        });
+      });
+
+      socket.on('chat message', ({ text, sender, createdAt, fileData, fileType }) => {
+        addMessage(text, sender, createdAt, fileData, fileType);
+      });
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const text = input.value.trim();
+        const file = fileInput.files[0];
+        let base64Data = null;
+        let fileType = null;
+
+        if (file) {
+          fileType = file.type;
+          base64Data = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = error => reject(error);
+            reader.readAsDataURL(file);
+          });
+        }
+
+        if (text || base64Data) {
+          const msg = {
+            text,
+            sender: username,
+            fileData: base64Data,
+            fileType: fileType,
+          };
+          socket.emit('chat message', msg);
+          input.value = '';
+          fileInput.value = '';
+        }
+      });
+    }
   </script>
 </body>
+
 </html>
