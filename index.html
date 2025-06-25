@@ -235,7 +235,7 @@
 
     function startChat() {
       username = prompt("Enter your name:")?.trim() || "Anonymous";
-      socket = io();
+      socket = io('https://chat-backend-9co6.onrender.com');
 
 
       const form = document.getElementById('form');
